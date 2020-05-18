@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 int compute_state(double x, double y, double z)
 {
@@ -59,7 +60,7 @@ void rotate_screen(int state, const char* xdevName)
 	system(command);
 }
 
-double readFloat(FILE* f)
+double read_float(FILE* f)
 {
 	char content[256];
 	fseek(f, 0, SEEK_SET);
@@ -82,6 +83,9 @@ int main(int argc, char const *argv[])
 		return 1;
 	}
 
+	//const char* screenDevice = "Wacom HID 4846 Finger";
+	const char* screenDevice = "Elan Touchscreen";
+
 	pclose(pf);
 
 	char *basedir_end = strrchr(basedir, '/');
@@ -94,23 +98,29 @@ int main(int argc, char const *argv[])
 	FILE* dev_accel_x = bdopen(basedir, "in_accel_x_raw", 1);
 	FILE* dev_accel_z = bdopen(basedir, "in_accel_z_raw", 1);
 
-	int lastState = 0;
+	int displayState = 0;
+	int lastState = displayState;
+	time_t lastSet = time(0);
 
 	while (1) {
-		const double accel_x = readFloat(dev_accel_x);
-		const double accel_y = readFloat(dev_accel_y);
-		const double accel_z = readFloat(dev_accel_z);
+		const double accel_x = read_float(dev_accel_x);
+		const double accel_y = read_float(dev_accel_y);
+		const double accel_z = read_float(dev_accel_z);
 
 		const int state = compute_state(accel_x, accel_y, accel_z);
 		if (state != lastState) {
+			lastSet = time(0);
 			lastState = state;
-			//rotate_screen("Wacom HID 4846 Finger");
-			rotate_screen(state, "Elan Touchscreen");
+		}
+
+		if (displayState != lastState && (time(0) - lastSet) > 1) {
+			displayState = lastState;
+			rotate_screen(displayState, screenDevice);
 		}
 
 		//fprintf(stderr, "r: %d / x: %.03f / y: %.03f / z: %.03f\n", lastState, accel_x, accel_y, accel_z);
 
-		sleep(1);
+		usleep(250 * 1000);
 	}
 
 	return 0;
